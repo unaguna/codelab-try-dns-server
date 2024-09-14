@@ -7,7 +7,7 @@
     "dockerComposeFile": [
         "./docker-compose.yml"
     ],
-    "workspaceFolder": "${WORKSPACE}",
+    "workspaceFolder": "/workspace",
     "service": "app",
     // Features to add to the dev container. More info: https://containers.dev/features.
     // "features": {},
