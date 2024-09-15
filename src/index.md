@@ -266,6 +266,164 @@ ping 192.168.0.101
 
 ## DNS サーバ立ち上げ
 
+前のステップでは OS を仮想マシンにインストールし、ログイン画面まで進みました。ここからはこの仮想マシンを DNS として使用できるように設定します。
+
+### ログイン
+
+まずはインストール時に作成したユーザ admin としてログインしましょう。画面中央の admin をクリックするとパスワード入力欄が表示されるので、そこにインストール時に設定したパスワードを入力しましょう。
+
+初めてログインすると下図の画面が表示されます。このハンズオンでは「必要ありません」をクリックして先に進みましょう。
+
+![初回ログイン](./img/virtualmachine-almalinux-firstlogin.png)
+
+### 端末の起動
+
+ここからはコマンドを用いて設定を進めます。そのために画面下部のアプリリストの ![端末アイコン](./img/icon-almalinux-terminal.png) をクリックすることで、下図の端末を起動しましょう。もしアプリリストを閉じてしまった場合、画面左上の「アクティビティ」をクリックすることでアプリリストを再度表示できます。
+
+![端末ウィンドウ](./img/virtualmachine-almalinux-terminal-top.png)
+
+### root に昇格
+
+この先の操作は管理者権限を要するものばかりなので、以降の操作全てを root として実行できるようにするために下記のコマンドを実行します。
+
+```console
+sudo -s
+```
+
+すると、警告メッセージとともにパスワードの入力が要求されるため、admin ユーザのパスワードと Enter キーを入力しましょう。下図のように `[root@ ... #` と表示されたら成功です。以降の操作は root 権限をもつ者として実行されます。
+
+![sudo実行後](./img/virtualmachine-almalinux-terminal-sudo-s.png)
+
+### DNS サーバの状態の確認
+
+まず一度、DNS サーバに問い合わせをしてみましょう。端末で次のコマンドを実行します。
+
+```console
+dig @localhost www.google.com
+```
+
+このコマンドは localhost (つまりゲストOS自身) へ `www.google.com` の IP アドレスを問い合わせます。しかし、今は `connection timed out` のメッセージとともに失敗するはずです。なぜならまだ DNS サーバのサービス (`named.service`) を起動していないためです。
+
+`named.service` が起動していないことは下記のコマンドで確かめられます。
+
+```console
+systemctl status named
+```
+
+このコマンドを実行すると次のような表示がされます。
+
+```plaintext
+named.service - Berkeley Internet Name Domain (DNS)
+    Loaded: loaded (/usr/lib/systemd/system/named.service; disabled; preset: disabled)
+    Active: inactive (dead)
+```
+
+Active 欄が inactive なので動作していないことがわかります。
+
+<aside class="positive">
+上記の手順はトラブル発生時、解決の糸口となる原因を探るために有効です。上記の操作で、DNS サービスそのものが動作している (active) のか動作していないのか (inactive) がわかります。
+</aside>
+
+### DNS サービスの起動
+
+では DNS サービスを起動してみましょう。次のコマンドを実行します。
+
+```console
+systemctl start named
+```
+
+何もメッセージが出力されなければ成功です。続けて、下記のコマンドで名前解決を試してみましょう。
+
+```console
+dig @localhost www.google.com
+```
+
+先ほど失敗したときと同様にテキストが出力されますが、今回はその中に次のような文字列が出力され、www.google.com の IP アドレスを取得できた、つまり名前解決に成功したことがわかります。
+
+```plaintext
+;; ANSWER SECTION:
+www.google.com.    300   IN   A   142.250.196.100
+```
+
+これで DNS サーバの立ち上げを完了できたように思えますが、実はまだ次の課題が残っています。
+
+- この DNS サービス起動は一時的なものです。ゲストOSを再起動すると再び inactive 状態になります。
+- この DNS サーバはゲストOS自身からのアクセスにしか応答しません。ファイアーウォールと named の設定によって二重に阻まれています。
+
+続けて、これらの問題を解消しましょう。
+
+### DNS サービスの自動起動
+
+これまでの操作で DNS サービスを起動しましたが、これは一時的なものであり、ゲストOSをシャットダウン・再起動すると再び inactive 状態に戻ってしまいます。以下の手順で、ゲストOS起動時に DNS サービスを自動で起動するように設定しましょう。
+
+手順はただ一つ、次のコマンドを実行するだけです。
+
+```console
+systemctl enable named
+```
+
+それができたら、下記のコマンドを実行して状態を確認しましょう。
+
+```console
+systemctl status named
+```
+
+以下のように、Loaded の行が enabled になっているはずです。
+
+```plaintext
+named.service - Berkeley Internet Name Domain (DNS)
+    Loaded: loaded (/usr/lib/systemd/system/named.service; enabled; preset: disabled)
+    Active: inactive (dead)
+```
+
+今回は出力が長いためテキスト閲覧モードになっているかもしれません。その場合、q を入力することでテキスト閲覧を終了できます。
+
+これで、DNS サービスが自動で起動するようになりました。
+
+### ファイアーウォールの設定
+
+次に、ファイアーウォールを緩和します。現状の設定では DNS への問い合わせを待ち受けるポート 53 が封じられているため、他の端末 (ホストOSも含む) からゲストOSの DNS への問い合わせを受け付けられません。
+
+そのことを確認するために、下記のコマンドを実行してみましょう。
+
+```console
+firewall-cmd --list-all
+```
+
+出力の中に 53 番ポートや named がないことがわかります。
+
+そこで、次の2つのコマンドを実行することでポート 53 の開放を設定します。
+
+```console
+firewall-cmd --add-port 53/tcp --permanent
+firewall-cmd --add-port 53/udp --permanent
+```
+
+このコマンドで TCP と UDP の 53 番ポートの開放を設定します。`--permanent` を付けているのでポートを閉鎖するコマンドを実行するまで開放されます。ただし、まだこの設定は反映されていません。
+
+下記のコマンドを実行することで、設定を反映します。
+
+```console
+firewall-cmd --reload
+```
+
+ここまでできたら、もう一度下記のコマンドを実行して、ポートが開放されたかどうかを確認しましょう。
+
+```console
+firewall-cmd --list-all
+```
+
+ports の欄に「53/tcp 53/udp」と表示されれば成功です。無事、firewall によるDNSアクセスの遮断を解除することができました。
+
+ただし、named の設定による遮断は解除できていないので、まだ他の端末 (ホストOSを含む) からは DNS へアクセスできないことに注意してください。
+
+### 次のステップへ
+
+次のステップでは named の設定を編集することで、DNSサーバとしてネットワーク内の他の端末から利用できるようにします。
+
+## DNS サーバの初期設定
+
+
 ### 名前解決できるかを確認する
 
 DNS サーバを設定したので、実際に名前解決ができるかを確認しましょう。ホスト側 (あるいは同一ネットワーク内の別の端末) で Powershell を起動し、下記のコマンドを実行します。
