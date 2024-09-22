@@ -497,3 +497,117 @@ nslookup www.google.com 192.168.0.101
 IPアドレスが表示されれば成功です。
 
 ## 独自の名前解決の登録
+
+このステップではドメイン `myserver.test` を `192.168.0.10` に解決するように DNS サーバを設定します。
+
+### ゾーン設定の追加
+
+まずは前のステップでも編集した設定ファイル `/etc/named.conf` にさらに設定を追加します。下記のコマンドでテキストエディタを起動します。
+
+```console
+vim /etc/named.conf
+```
+
+そして、末尾に次の文字列を追加します。
+
+```conf
+zone "myserver.test" {
+        type master;
+        file "myserver.test.zone";
+        allow-query { 127.0.0.1; 192.168.0.0/24; };
+        allow-transfer { none; };
+};
+```
+
+この設定の意味は次の通りです。
+
+- ドメイン `myserver.test` の権威サーバ (`master`) としてふるまいます。
+- 詳細な設定ファイルはこの後作成するゾーンファイル `myserver.test.zone` に記載します。
+- このふるまいはゲストOS自身 (`127.0.0.1`) と `192.168.0.0/24` からのアクセス時にのみ有効です。
+- ゾーン転送を無効化します。
+
+変更を実施したら、前のステップと同様に、以下のコマンドを実行することで設定ファイルに構文エラーが無いかをチェックしましょう。
+
+```
+named-checkconf
+```
+
+### ゾーンファイルの作成
+
+次にゾーンファイル `myserver.test.zone` を作成します。下記のコマンドでテキストエディタを起動します。
+
+```console
+vim /var/named/myserver.test.zone
+```
+
+そして、下記の内容を記載します。
+
+```
+$TTL 8h
+@ IN SOA myserver.test. postmaster.myserver.test. (
+1
+1d
+3h
+3d
+3h )
+
+        IN NS   myserver.test.
+
+myserver.test.  IN A    192.168.0.10
+```
+
+3行目の `1` はシリアルナンバーです。このファイルの内容を変更する際はこの番号をより大きくなるよう変更してください。
+
+<aside class="positive">
+
+さらに下記の行を追加すると、`sub.myserver.test` を `192.168.0.11` に解決するようになります。
+
+```
+sub.myserver.test.  IN A    192.168.0.11
+```
+
+このサーバは `myserver.test` の権威サーバとしてふるまうように設定されているため、そのサブドメイン (`.myserver.test` で終わるドメイン) の名前解決も登録できるのです。
+</aside>
+
+上記の内容を記載したら、ファイルのパーミッションを変更します。作ったばかりのファイルは OS のデフォルトのパーミッションが設定されていて適切ではないためです。以下のコマンドを実行することで、ゾーンファイルの所有グループとパーミッションを変更してください。
+
+```console
+chown root:named /var/named/myserver.test.zone
+chmod 640 /var/named/myserver.test.zone
+```
+
+この変更によって、編集は `root` ユーザのみ可能、読み込みは `root` ユーザと `named` グループのみ可能となり、それ以外の者による読み書きから守られます。
+
+以上の変更を実施したら、以下のコマンドを実行することで設定ファイルに構文エラーが無いかをチェックしましょう。
+
+```
+named-checkzone myserver.test /var/named/myserver.test.zone
+```
+
+
+### 設定の反映と動作確認
+
+これで設定ファイルの編集が完了したので、これを実行中の DNS サービスに反映しましょう。次のコマンドを実行することで、設定ファイルを反映します。
+
+```console
+systemctl reload named
+```
+
+何も出力が無ければ成功です。
+
+まずはゲストOSから `myserver.test` を解決できるかを確かめてみましょう。下記の2つのコマンドを実行します。
+
+```console
+dig @127.0.0.1 myserver.test
+dig @192.168.0.101 myserver.test
+```
+
+両方とも先ほど設定した `myserver.test` の IP アドレスを出力していれば成功です。
+
+続いて、ホストOS (もしくは他の端末) からも利用できるかを確かめてみましょう。ホストOS (もしくは他の端末) で Powershell を開き、下記のコマンドを実行します。
+
+```powershell
+nslookup myserver.test 192.168.0.101
+```
+
+こちらにも同じIPアドレスが表示されれば成功です。
