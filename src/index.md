@@ -400,11 +400,20 @@ firewall-cmd --list-all
 そこで、次の2つのコマンドを実行することでポート 53 の開放を設定します。
 
 ```console
+firewall-cmd --add-service dns --permanent
+```
+
+このコマンドで DNS が問い合わせを待ち受ける TCP と UDP の 53 番ポートの開放を設定します。`--permanent` を付けているのでポートを閉鎖するコマンドを実行するまで開放されます。ただし、まだこの設定は反映されていません。
+
+<aside class="positive">
+
+ポート開放は、下記のようにポート番号を指定して実施することもできます。
+
+```console
 firewall-cmd --add-port 53/tcp --permanent
 firewall-cmd --add-port 53/udp --permanent
 ```
-
-このコマンドで TCP と UDP の 53 番ポートの開放を設定します。`--permanent` を付けているのでポートを閉鎖するコマンドを実行するまで開放されます。ただし、まだこの設定は反映されていません。
+</aside>
 
 下記のコマンドを実行することで、設定を反映します。
 
