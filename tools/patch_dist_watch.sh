@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 監視対象のディレクトリ
-DIR_TO_WATCH=/workspace_local/dist
+DIR_TO_WATCH=${DIST_DIR:-"/workspace_local/dist"}
 
 SCRIPT_DIR=$(cd $(dirname $0); pwd)
 
@@ -9,7 +9,10 @@ SCRIPT_DIR=$(cd $(dirname $0); pwd)
 # CAUTION: この変換は何度も実施されることがあるので、冪等になるように注意して作成すること。
 
 inotifywait -m -e modify --format '%w%f' -r "$DIR_TO_WATCH" | while read -r FILE; do
-    if [[ "$FILE" == *.html ]]; then
+    if [[ "$FILE" == "$DIR_TO_WATCH/"*"/index.html" ]]; then
         "$SCRIPT_DIR/patch_dist.sh" "$FILE"
+    fi
+    if [[ "$FILE" == */codelab.json ]]; then
+        "$SCRIPT_DIR/make_index.go"
     fi
 done

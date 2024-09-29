@@ -1,7 +1,12 @@
 #!/bin/bash
 
-cd /workspace_local/dist
+# codelabs の出力先ディレクトリ
+DIST_DIR=${DIST_DIR:-/workspace_local/dist}
 
+cd "$DIST_DIR"
+
+# デフォルトのプロトコル
+HTTP_SCHEME=${HTTP_SCHEME:-"http://"}
 # 左上の×ボタン (Close ボタン) のリンク先
 URL_CLOSE='../'
 # 右下の Done ボタンのリンク先
@@ -38,7 +43,7 @@ echo "${file_list[@]}" | while read -r FILE; do
     if [[ "$FILE" == *.html ]]; then
         sed -i \
             -e "s|^</head>|${script_tag}</head>|" \
-            -e 's|href="//|href="http://|g' \
+            -e "s|href=\"//|href=\"$HTTP_SCHEME|g" \
             -e "s| </style>|${style_part}</style>|" \
             -e "s/google-codelab-analytics/!--/g" \
             "$FILE"

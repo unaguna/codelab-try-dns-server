@@ -9,6 +9,17 @@
             "runOptions": {
                 "runOn": "folderOpen"
             }
+        },
+        {
+            "label": "Generate Index Page",
+            "type": "go",
+            "command": "run",
+            "args": [
+                "${workspaceFolder}/tools/make_index.go"
+            ],
+            "problemMatcher": [
+                "$go"
+            ],
         }
     ]
 }

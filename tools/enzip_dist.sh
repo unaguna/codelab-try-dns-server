@@ -2,7 +2,7 @@
 
 set -e
 
-readonly DIST_DIR=/workspace_local/dist
+readonly DIST_DIR=${DIST_DIR:-"/workspace_local/dist"}
 readonly BUILD_DIR_NAME=build
 readonly zip_path="${WORKSPACE}/${BUILD_DIR_NAME}/${PROJECT_NAME}-dist.zip"
 
